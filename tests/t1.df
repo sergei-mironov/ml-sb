@@ -1,0 +1,14 @@
+
+val const = x y .  x
+
+val t1 = x y .
+  let
+    val z = a . a + 3
+  in
+    case x of
+      |0 -> x . x+3
+      |1 -> z
+      |_ -> y
+    end
+  end
+

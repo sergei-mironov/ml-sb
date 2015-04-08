@@ -1,0 +1,10 @@
+
+val const = x y .  x
+
+val t1 = x y .
+  let
+    val z = a . a + 3
+  in
+    z (x + y)
+  end
+

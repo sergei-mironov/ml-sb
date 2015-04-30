@@ -13,28 +13,23 @@ import Control.Applicative ((<$>), (<*>), (*>), (<*))
 type Id = String
 
 -- | Data type representing lambda-calculus expressions.
-data Expr
-  = Lam Id Expr
+data Expr =
+    Lam Id Expr
     -- ^ A lambda abstraction.
   | App Expr Expr
     -- ^ An expression applied to another.
   | Let Decl {-in-} Expr
     -- ^ Polymorphic let.
-  deriving Eq
+  | Case Expr [(Expr,Expr)]
+    -- ^ Case expression
+  deriving (Eq,Show)
 
-data Decl
-  = Val Id Expr
+data Decl =
+    Val Id Expr
+  deriving (Eq,Show)
 
--- | A declaration (binds a certain expression to a variable). We add this
---   abstraction on top of let so that we can write programs more easily
---   (leaving let for local declarations).
-type Decl = (Id, Expr)
-
--- | A 'Program' is a list of declaration and an expression
---   representing what the program does. Each declaration can use
---   previous declarations only (no mutual recursion).
-data Program = Program [Decl] Expr
-  deriving Eq
+data Program = Program [Decl]
+  deriving (Eq,Show)
 
 
 {-
@@ -56,7 +51,7 @@ mlDef = LanguageDef
   , identLetter     = alphaNum <|> P.char '_'
   , opStart         = mzero
   , opLetter        = mzero
-  , reservedNames   = ["let", "in", "end", "val"]
+  , reservedNames   = ["let", "in", "end", "val", "case"]
   , reservedOpNames = ["|", "->", "="]
   , caseSensitive   = True
   }
@@ -69,9 +64,10 @@ llet    = P.reserved lexer "let"
 lin     = P.reserved lexer "in"
 lend    = P.reserved lexer "end"
 lval    = P.reserved lexer "val"
+lcase   = P.reserved lexer "case"
 
 ldot    = P.dot lexer
-lequal  = P.reservedOp lexer "="
+leq  = P.reservedOp lexer "="
 larr  = P.reservedOp lexer "->"
 lbar  = P.reservedOp lexer "|"
 lsemi   = P.semi lexer
@@ -87,15 +83,15 @@ parens  = P.parens lexer
 
  -}
 
-pvar     = Var <$> lid
 plam     = flip (foldr Lam) <$> (many1 lid) <*> (ldot *> pexpr)
-pval     = Val <$> (lid) <*> (leq *> pexpr)
+pval     = Val <$> lid <*> (leq *> pexpr)
 plet     = Let <$> (pdecl) <*> (lin *> pexpr <* lend) 
 pexpr    = plam <|> (foldl App <$> p <*> many p) where
-  p = parens (plam <|> pexpr) <|> try plet <|> pvar <?> "expression"
+  p = parens (plam <|> pexpr) <|> try plet <|> try pcase <?> "expression"
 
-pdecl    = (,) <$> lid <*> (lequal *> pexpr <* lsemi)
-pprogram = Program <$> many (try pdecl) <*> (pexpr <* lsemi)
+pcase = Case <$> (lcase *> pexpr <* lin) <*> (many ((,) <$> (lbar *> pexpr <* larr) <*> (pexpr)))
+pdecl    = Val <$> (lval *> lid) <*> (leq *> pexpr)
+pprogram = Program <$> many (try pdecl)
 
 parseExpr     :: String -> Either ParseError Expr
 parseExpr     = parse (spaces *> pexpr <* eof) ""

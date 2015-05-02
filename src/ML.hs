@@ -14,14 +14,16 @@ type Id = String
 
 -- | Data type representing lambda-calculus expressions.
 data Expr =
-    Lam Id Expr
+    Ident Id
+    -- ^ Bare identifier
+  | Lam Id Expr
     -- ^ A lambda abstraction.
-  | App Expr Expr
-    -- ^ An expression applied to another.
   | Let Decl {-in-} Expr
     -- ^ Polymorphic let.
   | Case Expr [(Expr,Expr)]
     -- ^ Case expression
+  | App Expr Expr
+    -- ^ An expression applied to another.
   deriving (Eq,Show)
 
 data Decl =
@@ -84,13 +86,19 @@ parens  = P.parens lexer
  -}
 
 plam     = flip (foldr Lam) <$> (many1 lid) <*> (ldot *> pexpr)
-pval     = Val <$> lid <*> (leq *> pexpr)
-plet     = Let <$> (pdecl) <*> (lin *> pexpr <* lend) 
-pexpr    = plam <|> (foldl App <$> p <*> many p) where
-  p = parens (plam <|> pexpr) <|> try plet <|> try pcase <?> "expression"
-
+plet     = Let <$> ((llet *> pdecl)) <*> ((lin *> pexpr <* lend)) 
+pid      = Ident <$> lid
 pcase = Case <$> (lcase *> pexpr <* lin) <*> (many ((,) <$> (lbar *> pexpr <* larr) <*> (pexpr)))
-pdecl    = Val <$> (lval *> lid) <*> (leq *> pexpr)
+papp x = (App <$> x <*> pexpr)
+pexpr =
+      try plet
+  <|> try pcase
+  <|> try plam
+  <|> try (papp (parens pexpr))
+  <|> try (papp pid)
+  <|> try (parens pexpr)
+  <|> pid
+pdecl = Val <$> (lval *> lid) <*> (leq *> pexpr)
 pprogram = Program <$> many (try pdecl)
 
 parseExpr     :: String -> Either ParseError Expr
@@ -98,9 +106,9 @@ parseExpr     = parse (spaces *> pexpr <* eof) ""
 parseExpr'    :: FilePath -> IO (Either ParseError Expr)
 parseExpr' fn = P.parse (spaces *> pexpr <* eof) fn <$> readFile fn
 
-parseProgram     :: String -> Either ParseError Program
-parseProgram     = parse (spaces *> pprogram <* eof) ""
-parseProgram'    :: FilePath -> IO (Either ParseError Program)
+parseProgram :: String -> Either ParseError Program
+parseProgram = parse (spaces *> pprogram <* eof) ""
+parseProgram' :: FilePath -> IO (Either ParseError Program)
 parseProgram' fn = parse (spaces *> pprogram <* eof) fn <$> readFile fn
 
 readParse :: Parser a -> String -> [(a, String)]

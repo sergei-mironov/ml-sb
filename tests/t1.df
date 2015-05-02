@@ -1,14 +1,12 @@
 
-val const = x y .  x
+val app = x a . (x a) a
 
-val t1 = x y .
+val const = x a . x
+
+val t1 = y .
   let
-    val z = a . a + 3
+    val z = a . a
   in
-    case x of
-      |0 -> x . x+3
-      |1 -> z
-      |_ -> y
-    end
+    z
   end
 

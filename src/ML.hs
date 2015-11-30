@@ -8,8 +8,6 @@ import Text.ParserCombinators.Parsec as P
 import qualified Text.ParserCombinators.Parsec.Token as P
 import Text.ParserCombinators.Parsec.Token hiding (parens, dot)
 
-import Control.Applicative ((<$>), (<*>), (*>), (<*))
-
 type Id = String
 
 -- | Data type representing lambda-calculus expressions.
@@ -86,7 +84,7 @@ parens  = P.parens lexer
  -}
 
 plam     = flip (foldr Lam) <$> (many1 lid) <*> (ldot *> pexpr)
-plet     = Let <$> ((llet *> pdecl)) <*> ((lin *> pexpr <* lend)) 
+plet     = Let <$> ((llet *> pdecl)) <*> ((lin *> pexpr <* lend))
 pid      = Ident <$> lid
 pcase = Case <$> (lcase *> pexpr <* lin) <*> (many ((,) <$> (lbar *> pexpr <* larr) <*> (pexpr)))
 papp x = (App <$> x <*> pexpr)

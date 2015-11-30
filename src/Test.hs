@@ -1,7 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables, TemplateHaskell #-}
-module Test.Scrooge where
+module Test where
 
-import Control.Applicative
 import Test.QuickCheck
 import Test.QuickCheck.Text
 import Test.QuickCheck.All

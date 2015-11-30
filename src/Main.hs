@@ -1,10 +1,11 @@
 module Main where
 
 import ML
-import Text.Printf
-import System.IO
 import System.Environment
+import Text.Printf
+import Text.Show.Pretty
 
+main :: IO ()
 main = do
   a <- getArgs
   s <- case a of
@@ -16,8 +17,8 @@ main = do
       readFile f
     _ -> error "Expected one argument"
 
-  printf "INPUT:\n%s\n" (unlines $ map (\(n,l) -> (show n)++ " " ++ l) ([1..]`zip`(lines s)))
+  printf "INPUT:\n%s\n" (unlines $ map (\(n,l) -> (show n)++ " " ++ l) ([(1::Int)..]`zip`(lines s)))
   case parseProgram s of
     Left err -> error $ "Parse error: " ++ show err
-    Right x -> printf "PUTPUT:\n%s\n" (show x)
-  
+    Right x -> printf "PUTPUT:\n%s\n" (ppShow x)
+

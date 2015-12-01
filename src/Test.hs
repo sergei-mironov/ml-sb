@@ -1,23 +1,30 @@
-{-# LANGUAGE ScopedTypeVariables, TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Test where
 
-import Test.QuickCheck
-import Test.QuickCheck.Text
-import Test.QuickCheck.All
-import Text.ParserCombinators.Parsec (parse)
+import Control.Monad
+import Control.Monad.Trans
+import Data.Either
+import Data.List
+import Test.Hspec
+import Text.Show.Pretty
+import System.Directory
+import System.FilePath
 
 import ML
 
-tparse p str = case parse p "" str of
-                Right _ -> True
-                Left x -> error (show x)
+main :: IO ()
+main = do
+  let testdir = "tests"
+  ts <- filter (isSuffixOf "df") <$> getDirectoryContents testdir
+  hspec $ do
+    describe "Client" $ do
+      forM_ (map (testdir</>) ts) $ \f -> do
+        it ("syntax/"++takeFileName f) $ do
+            p <- readFile f
+            r <- pure $ parseProgram p
+            case r of
+              Left err -> error $ "Parse error: " ++ show err
+              Right x -> putStrLn $ (ppShow x)
+            r `shouldSatisfy`isRight
 
-prop_pexpr1 () = tparse pexpr "a"
-prop_pexpr2 () = tparse pexpr "(a b)"
-prop_pexpr3 () = tparse pexpr "(b b) (a b)"
-prop_pexpr4 () = tparse pexpr "a . (b b) (a b)"
-prop_pexpr5 () = tparse pexpr "a b . (b b) (a b)"
-prop_pexpr5 () = tparse pexpr "a b . let val x = y in y (b b) (a b) end"
 
-return []
-main = $quickCheckAll

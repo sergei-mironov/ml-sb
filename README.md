@@ -1,13 +1,17 @@
-ML-DF
+ML-SB
 =====
 
-The goal of this project is self-education. I'll implement the minimal ML-like
-parser, just as @bionic originally did in his ML-W project
-https://github.com/bitonic/ml-w
+The goal of ML-sandbox project is self-education.
 
-Later, I plan to learn the Defunctionalisation technic using
-http://www.brics.dk/RS/01/23/BRICS-RS-01-23.pdf
-as a reference.
+I paln to experiment with the following algorithms
 
-The language is not functioning yet. Sample programs to be parsed are in tests/
-folder.
+ * Automatic differentiation
+ * Hindley-Milner type inference
+ * Defunctionalization
+
+Originally, the code was borrowed from https://github.com/bitonic/ml-w
+
+References
+----------
+
+ * http://www.brics.dk/RS/01/23/BRICS-RS-01-23.pdf

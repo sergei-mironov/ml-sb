@@ -17,12 +17,13 @@ let
     src = ./.;
     isLibrary = false;
     isExecutable = true;
-    executableHaskellDepends = with haskellPackages; [
-      base parsec pretty-show
-      recursion-schemes Earley
-     ];
+    # executableHaskellDepends = with haskellPackages; [ ];
     libraryHaskellDepends = with haskellPackages; [
       cabal-install ghc zlib haskdogs hasktags
+      recursion-schemes Earley
+      containers
+      parsec pretty-show
+      tasty tasty-hunit tasty-quickcheck HUnit
     ];
     description = "Minimal ML language to learn the Defunctionalization algorithm";
     license = stdenv.lib.licenses.gpl3;

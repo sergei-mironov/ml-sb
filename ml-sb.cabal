@@ -18,9 +18,11 @@ library mlsb
     , pretty-show
     , recursion-schemes
     , containers
+    , unordered-containers
   exposed-modules:
-      MLSB.Parser
-    , MLSB.Types
+      MLSB.Types
+    , MLSB.Parser
+    , MLSB.Eval
     , MLSB
   hs-source-dirs:
     src

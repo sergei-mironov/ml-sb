@@ -4,6 +4,7 @@ import qualified Data.Map as Map
 
 import Data.Monoid((<>))
 import Data.Map (Map, (!))
+
 import MLSB.Types
 
 data Val =
@@ -19,8 +20,8 @@ printVal val =
 eqVal :: Rational -> Val -> Val -> Bool
 eqVal tol a b =
   case (a,b) of
-    (ValC c1,ValC c2) -> eqConst tol c1 c2
-    _ -> error "eqVal: can't compare non-constant values"
+    (ValC c1, ValC c2) -> eqConst tol c1 c2
+    _ -> error $ "eqVal: can't compare non-constant values: " <> printVal a <> ", " <> printVal b
 
 type Env = Map String Val
 
@@ -46,16 +47,16 @@ emptyEnv = Map.empty
 initEnv :: Env
 initEnv = Map.fromList $
   let
-    arith nm op =
+    arithm nm op =
       ValFn $ \a -> ValFn $ \b ->
         case (a,b) of
           (ValC (ConstR af), ValC (ConstR bf)) -> ValC $ ConstR $ af`op`bf
           _ -> error $ "Invalid operands for ("<>nm<>")"
   in [
-    ("+", arith "+" (+))
-  , ("-", arith "-" (-))
-  , ("*", arith "*" (*))
-  , ("/", arith "/" (/))
+    ("+", arithm "+" (+))
+  , ("-", arithm "-" (-))
+  , ("*", arithm "*" (*))
+  , ("/", arithm "/" (/))
   , ("<>",
       ValFn $ \a -> ValFn $ \b ->
         case (a,b) of

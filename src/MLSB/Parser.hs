@@ -32,7 +32,7 @@ builtin_ids,builtin_ops,whitespace,special :: HashSet Char
 builtin_ids = HashSet.fromList $ ['a'..'z']<>['A'..'Z']<>['0'..'9']<>"_"
 builtin_ops = HashSet.fromList $ "*/+-<>="
 whitespace = HashSet.fromList  $ " \t\n"
-special = HashSet.fromList     $ "()."
+special = HashSet.fromList     $ ";()."
 
 tokenize :: String -> [String]
 tokenize ""        = []
@@ -71,21 +71,24 @@ expr =
 
   in mdo
 
+  xexpr1 <-
+    rule $ namedToken "(" *> xexpr <* namedToken ")"
+           <|> xident <|> xconst <?> "Expr1"
   xexpr <-
-    rule $ namedToken "(" *> xmix <* namedToken ")"
-           <|> xapp <|> xident <|> xconst <|> xlet <|> xlam <?> "Expr"
+    rule $ namedToken "(" *> xexpr <* namedToken ")"
+           <|> xapp <|> xident <|> xconst <|> xlet <|> xlam <|> xmix <?> "Expr"
   xconst <- rule $ Const <$> xrational
   xrational <- rule $ ConstR <$> ((fromInteger . read) <$> satisfy (all isDigit)) <?> "Rational" -- FIXME: accept non-int
   xpat <- rule $ Pat <$> (satisfy isIdent) <?> "Pattern"
   xident <- rule $ Ident <$> (satisfy isIdent) <?> "Ident"
   xlam <- rule $ Lam <$> xpat <*> (namedToken "." *> xexpr) <?> "Lambda"
-  xlet <- rule $ Let <$> (namedToken "let" *> xpat)
-                     <*> (namedToken "=" *> xexpr)
-                     <*> (namedToken "in" *> xexpr) <?> "Let"
+  xasgn <- rule $ (,) <$> xpat <* namedToken "=" <*> xexpr <* namedToken ";" <?> "Assign"
+  xlet <- rule $ flip (foldr (\(p,e) acc -> Let p e acc))
+                  <$> (namedToken "let" *> some xasgn) <*> (namedToken "in" *> xexpr) <?> "Let"
   xapp <- rule $ App <$> xexpr <*> xexpr <?> "App"
-  xmix <- mixfixExpression table xexpr mixfix_combine
+  xmix <- mixfixExpression table xexpr1 mixfix_combine
 
-  return xmix
+  return xexpr
 
 
 parseExpr :: String -> Either ParserError Expr

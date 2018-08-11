@@ -11,7 +11,7 @@ import Text.Show.Deriving (deriveShow1)
 import Text.Read.Deriving (deriveRead1)
 import Data.Eq.Deriving (deriveEq1)
 import Data.Functor.Classes (Show1(..))
-import Data.Functor.Foldable (Fix(..), Recursive(..), Corecursive(..))
+import Data.Functor.Foldable (Base, Fix(..), Recursive(..), Corecursive(..))
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 
 type Id = String
@@ -51,6 +51,17 @@ deriveRead1 ''ExprF
 deriveEq1   ''ExprF
 
 type Expr1 = Fix ExprF
+
+data Whitespaced f a = Whitespaced { cm_get :: Maybe String, cm_next :: (f a) }
+  deriving(Eq,Show,Read,Functor)
+
+deriveShow1 ''Whitespaced
+deriveRead1 ''Whitespaced
+deriveEq1   ''Whitespaced
+
+type ExprW = Fix (Whitespaced ExprF)
+
+type instance Base (Whitespaced ExprF _) = ExprF
 
 {-
 eqExpr :: Rational -> Expr -> Expr -> Bool

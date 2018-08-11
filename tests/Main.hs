@@ -44,10 +44,10 @@ main :: IO ()
 main = defaultMain $
     testGroup "All" [
       testCase "Tokenize" $ do
-        tokenize "asdas<>111+8" @?= ["asdas","<>","111","+","8"]
-        tokenize "x (=<>=) y" @?= ["x","(","=<>=",")","y"]
-        tokenize "x==y" @?= ["x","==","y"]
-        tokenize "x;23+(zzz)" @?= ["x",";","23","+","(","zzz",")"]
+        tokenize "asdas<>111+8" @?= [Cd "asdas",Cd "<>",Cd "111",Cd "+",Cd "8"]
+        tokenize "x (=<>=) y" @?= [Cd "x", Ws " ", Cd"(",Cd "=<>=",Cd ")",Ws " ", Cd "y"]
+        tokenize "x==y" @?= [Cd "x",Cd "==",Cd "y"]
+        tokenize "x;23+(zzz)" @?= [Cd "x",Cd ";",Cd "23",Cd "+",Cd "(",Cd "zzz",Cd ")"]
     , testCase "Parse" $ do
         parsesAs " a " (Ident "a")
         parsesAs "a b" (App (Ident "a") (Ident "b"))

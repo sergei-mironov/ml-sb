@@ -11,8 +11,9 @@ import Control.Applicative((<$>),(<*>),(*>),(<*),(<|>),pure,many,some)
 import Control.Arrow
 import Data.Char
 import Data.Foldable(foldr1)
-import Data.Functor.Foldable (Fix(..), Recursive(..), Corecursive(..))
+import Data.Functor.Foldable(Fix(..),Recursive(..),Corecursive(..))
 import Data.List
+import Data.Maybe(listToMaybe)
 import Data.Monoid((<>))
 import Text.Earley
 import Text.Earley.Mixfix
@@ -23,10 +24,10 @@ import MLSB.Types
 data ParserError = ParserError String
   deriving(Show, Eq, Ord)
 
-holey :: String -> Holey String
+holey :: String -> Holey Lex
 holey ""       = []
 holey ('_':xs) = Nothing : holey xs
-holey xs       = Just i : holey rest
+holey xs       = Just (Cd i) : holey rest
   where (i, rest) = span (/= '_') xs
 
 builtin_ids,builtin_ops,whitespace,special :: HashSet Char
@@ -35,65 +36,74 @@ builtin_ops = HashSet.fromList $ "*/+-<>="
 whitespace = HashSet.fromList  $ " \t\n"
 special = HashSet.fromList     $ ";()."
 
-tokenize :: String -> [String]
+data Lex = Ws { unWs :: String } | Cd { unCode :: String }
+  deriving(Show,Eq)
+
+tokenize :: String -> [Lex]
 tokenize ""        = []
 tokenize (x:xs)
-  | x `HashSet.member` whitespace = tokenize xs
-  | x `HashSet.member` special = [x] : tokenize xs
-  | x `HashSet.member` builtin_ids = (x:id_head) : tokenize id_tail
-  | x `HashSet.member` builtin_ops = (x:op_head) : tokenize op_tail
+  | x `HashSet.member` whitespace  = Ws (x:ws_head) : tokenize ws_tail
+  | x `HashSet.member` special     = Cd [x]         : tokenize xs
+  | x `HashSet.member` builtin_ids = Cd (x:id_head) : tokenize id_tail
+  | x `HashSet.member` builtin_ops = Cd (x:op_head) : tokenize op_tail
   | otherwise = error $ "tokenize: Invalid token: " <> (x:xs)
   where
+    (ws_head, ws_tail) = break (not . flip HashSet.member whitespace) xs
     (id_head, id_tail) = break (not . flip HashSet.member builtin_ids) xs
     (op_head, op_tail) = break (not . flip HashSet.member builtin_ops) xs
 
 isIdent :: String -> Bool
 isIdent = \case
   (x:xs) -> isAlpha x && all isAlphaNum xs
-  [] -> False
+  _ -> False
 
-expr :: forall r . Grammar r (Prod r String String Expr1)
+expr :: forall r . Grammar r (Prod r String Lex ExprW)
 expr =
 
   let
+    tok t = unCode <$> token (Cd t)
+    sat f = unCode <$> (satisfy $ \case { Cd c -> f c; _ -> False })
+    ws = fmap unWs <$> listToMaybe <$> (many (satisfy $ \case { Ws _ -> True; _ -> False }))
+    t1 f a = Fix $ Whitespaced Nothing $ f a
+    t2 f a b = Fix $ Whitespaced Nothing $ f a b
+    tc c f = Fix $ Whitespaced c $ f
 
-    table = {- sic! -}
-      map (map $ first $ map $ fmap namedToken) $
-        (map . map) (first holey) [
-          [("_+_", LeftAssoc)]
-        , [("_-_", LeftAssoc)]
-        , [("_*_", LeftAssoc)]
-        , [("_/_", LeftAssoc)]
+
+    table :: [[(Holey (Prod r String Lex String), Associativity)]]
+    table = [
+          [([Nothing, Just $ ws *> tok "+", Nothing], LeftAssoc)]
+        , [([Nothing, Just $ ws *> tok "-", Nothing], LeftAssoc)]
+        , [([Nothing, Just $ ws *> tok "*", Nothing], LeftAssoc)]
+        , [([Nothing, Just $ ws *> tok "/", Nothing], LeftAssoc)]
         ]
 
-    {- Convert matching operators into applications -}
-    mixfix_combine [Nothing, Just oper, Nothing] exprs = foldl1 (\a b -> Fix $ AppF a b) ((Fix $ IdentF oper):exprs)
-    mixfix_combine h _ = error $ "mixfix_combine: not-implemented for " <> show h
+    combine [Nothing, Just oper, Nothing] exprs = foldl1 (\a b -> t2 AppF a b) ((t1 IdentF oper):exprs)
+    combine h _ = error $ "combine: not-implemented for " <> show h
 
   in mdo
 
-  xexpr1 <-
-    rule $ namedToken "(" *> xexpr <* namedToken ")"
-           <|> xident <|> xconst <?> "Expr1"
-  xexpr <-
-    rule $ namedToken "(" *> xexpr <* namedToken ")"
-           <|> xapp <|> xident <|> xconst <|> xlet <|> xlam <|> xmix <?> "Expr"
-  xconst <- rule $ Fix <$> (ConstF <$> xrational)
-  xrational <- rule $ ConstR <$> ((fromInteger . read) <$> satisfy (all isDigit)) <?> "Rational" -- FIXME: accept non-int
-  xpat <- rule $ Pat <$> (satisfy isIdent) <?> "Pattern"
-  xident <- rule $ Fix <$> (IdentF <$> (satisfy isIdent) <?> "Ident")
-  xlam <- rule $ Fix <$> (LamF <$> xpat <*> (namedToken "." *> xexpr) <?> "Lambda")
-  xasgn <- rule $ (,) <$> xpat <* namedToken "=" <*> xexpr <* namedToken ";" <?> "Assign"
-  xlet <- rule $ flip (foldr (\(p,e) acc -> Fix $ LetF p e acc))
-                  <$> (namedToken "let" *> some xasgn) <*> (namedToken "in" *> xexpr) <?> "Let"
-  xapp <- rule $ Fix <$> (AppF <$> xexpr <*> xexpr <?> "App")
-  xmix <- mixfixExpression table xexpr1 mixfix_combine
+  xexpr1 <- rule $ (ws *> tok "(") *> xexpr <* (ws *> tok ")") <|> xident <|> xconst <?> "Expr1"
+  xexpr <- rule $ (ws *> tok "(") *> xexpr <* (ws *> tok ")")
+              <|> xapp <|> xident <|> xconst <|> xlet <|> xlam <|> xmix <?> "Expr"
+  xrational <- rule $ ConstR <$> ((fromInteger . read) <$> sat (all isDigit)) <?> "Rational" -- FIXME: accept non-int
+  xpat <- rule $ Pat <$> (sat isIdent) <?> "Pattern"
+  xconst <- rule $ t1 ConstF <$> (ws *> xrational)
+  xident <- rule $ t1 IdentF <$> (ws *> (sat isIdent)) <?> "Ident"
+  xlam <- rule $ t2 LamF <$> (ws *> xpat) <*> (ws *> tok "." *> ws *> xexpr) <?> "Lambda"
+  xasgn <- rule $ (,,) <$> ws <*> (xpat <* ws <* tok "=") <*> (ws *> xexpr <* ws <* tok ";") <?> "Assign"
+  xlet <- rule $ flip (foldr (\(w,p,e) acc -> tc w (LetF p e acc)))
+                  <$> (ws *> tok "let" *> some xasgn) <*> (ws *> tok "in" *> xexpr) <?> "Let"
+  xapp <- rule $ t2 AppF <$> xexpr <*> xexpr <?> "App"
+  xmix <- mixfixExpression table xexpr1 combine
 
-  return xexpr
+  xexpr_ws <- rule $ xexpr <* ws
+
+  return xexpr_ws
 
 
-parseExpr1 :: String -> Either ParserError Expr1
-parseExpr1 str =
+
+parseExprC :: String -> Either ParserError ExprW
+parseExprC str =
   let
     (res,Report{..}) = fullParses (parser expr) $ tokenize str
 
@@ -103,11 +113,12 @@ parseExpr1 str =
   in
   case nub res of
     []  -> Left $ ParserError err
-    [Fix e] -> Right (Fix e)
+    [e] -> Right e
     xs  -> Left $ ParserError $ show position <> ": multiple outputs: [\n" <>
       unlines (flip map xs (\x -> show x <> ",")) <> "]"
 
 
 parseExpr :: String -> Either ParserError Expr
-parseExpr = either Left (Right . cata embed) . parseExpr1
+parseExpr = either Left (Right . cata (embed . cm_next)) . parseExprC
+
 

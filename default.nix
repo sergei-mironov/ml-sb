@@ -25,6 +25,7 @@ let
       parsec pretty-show
       tasty tasty-hunit tasty-quickcheck HUnit
       unordered-containers
+      deriving-compat
     ];
     description = "Minimal ML language to learn the Defunctionalization algorithm";
     license = stdenv.lib.licenses.gpl3;

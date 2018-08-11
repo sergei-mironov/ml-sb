@@ -4,6 +4,7 @@ import Test.Tasty (TestTree, testGroup, defaultMain)
 import Test.Tasty.HUnit (testCase, assertBool, (@?=))
 
 import Control.Monad(when)
+import Data.Functor.Foldable (Fix(..), Recursive(..), Corecursive(..))
 import Data.Maybe(fromMaybe)
 import Data.Monoid ((<>))
 
@@ -32,7 +33,7 @@ evals s ans =
   case parseExpr s of
     Right e ->
       let
-        res = eval initEnv e
+        res = evalExpr initEnv e
       in
       case (ValC ans) `closeVal` res of
         True -> return ()

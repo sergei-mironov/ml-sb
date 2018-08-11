@@ -19,6 +19,7 @@ library mlsb
     , recursion-schemes
     , containers
     , unordered-containers
+    , deriving-compat
   exposed-modules:
       MLSB.Types
     , MLSB.Parser
@@ -37,6 +38,7 @@ executable mlsb0
   build-depends:
       base >=4.7 && <5
     , mlsb
+    , recursion-schemes
   hs-source-dirs:
     app/mlsb0
   default-language:
@@ -57,6 +59,7 @@ test-suite test
     , tasty
     , tasty-hunit
     , tasty-quickcheck
+    , recursion-schemes
     , mlsb
   default-language: Haskell2010
   ghc-options:

@@ -2,6 +2,7 @@ module MLSB.Eval where
 
 import qualified Data.Map as Map
 
+import Data.Functor.Foldable (Fix(..), Recursive(..), Corecursive(..))
 import Data.Monoid((<>))
 import Data.Map (Map, (!))
 
@@ -25,20 +26,23 @@ eqVal tol a b =
 
 type Env = Map String Val
 
-eval :: Env -> Expr -> Val
-eval env expr =
+evalExpr :: Env -> Expr -> Val
+evalExpr env expr =
   case expr of
     Const c -> ValC c
     Ident i ->
       case Map.lookup i env of
         Just val -> val
         Nothing -> error $ "Invalid identifier '"<>i<>"'"
-    Lam (Pat p) elam -> ValFn $ \v -> eval (Map.insert p v env) elam
-    Let (Pat p) elet ein -> eval (Map.insert p (eval env elet) env) ein
+    Lam (Pat p) elam -> ValFn $ \v -> evalExpr (Map.insert p v env) elam
+    Let (Pat p) elet ein -> evalExpr (Map.insert p (evalExpr env elet) env) ein
     App elam earg ->
-      case eval env elam of
-        ValFn f -> f (eval env earg)
+      case evalExpr env elam of
+        ValFn f -> f (evalExpr env earg)
         val -> error "Unable to apply to non-lambda"
+
+evalExpr1 :: Env -> Expr1 -> Val
+evalExpr1 env = evalExpr env . cata embed
 
 emptyEnv :: Env
 emptyEnv = Map.empty

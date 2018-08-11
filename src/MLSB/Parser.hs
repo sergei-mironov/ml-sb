@@ -11,6 +11,7 @@ import Control.Applicative((<$>),(<*>),(*>),(<*),(<|>),pure,many,some)
 import Control.Arrow
 import Data.Char
 import Data.Foldable(foldr1)
+import Data.Functor.Foldable (Fix(..), Recursive(..), Corecursive(..))
 import Data.List
 import Data.Monoid((<>))
 import Text.Earley
@@ -51,7 +52,7 @@ isIdent = \case
   (x:xs) -> isAlpha x && all isAlphaNum xs
   [] -> False
 
-expr :: forall r . Grammar r (Prod r String String Expr)
+expr :: forall r . Grammar r (Prod r String String Expr1)
 expr =
 
   let
@@ -66,7 +67,7 @@ expr =
         ]
 
     {- Convert matching operators into applications -}
-    mixfix_combine [Nothing, Just oper, Nothing] exprs = foldl1 App (Ident oper:exprs)
+    mixfix_combine [Nothing, Just oper, Nothing] exprs = foldl1 (\a b -> Fix $ AppF a b) ((Fix $ IdentF oper):exprs)
     mixfix_combine h _ = error $ "mixfix_combine: not-implemented for " <> show h
 
   in mdo
@@ -77,22 +78,22 @@ expr =
   xexpr <-
     rule $ namedToken "(" *> xexpr <* namedToken ")"
            <|> xapp <|> xident <|> xconst <|> xlet <|> xlam <|> xmix <?> "Expr"
-  xconst <- rule $ Const <$> xrational
+  xconst <- rule $ Fix <$> (ConstF <$> xrational)
   xrational <- rule $ ConstR <$> ((fromInteger . read) <$> satisfy (all isDigit)) <?> "Rational" -- FIXME: accept non-int
   xpat <- rule $ Pat <$> (satisfy isIdent) <?> "Pattern"
-  xident <- rule $ Ident <$> (satisfy isIdent) <?> "Ident"
-  xlam <- rule $ Lam <$> xpat <*> (namedToken "." *> xexpr) <?> "Lambda"
+  xident <- rule $ Fix <$> (IdentF <$> (satisfy isIdent) <?> "Ident")
+  xlam <- rule $ Fix <$> (LamF <$> xpat <*> (namedToken "." *> xexpr) <?> "Lambda")
   xasgn <- rule $ (,) <$> xpat <* namedToken "=" <*> xexpr <* namedToken ";" <?> "Assign"
-  xlet <- rule $ flip (foldr (\(p,e) acc -> Let p e acc))
+  xlet <- rule $ flip (foldr (\(p,e) acc -> Fix $ LetF p e acc))
                   <$> (namedToken "let" *> some xasgn) <*> (namedToken "in" *> xexpr) <?> "Let"
-  xapp <- rule $ App <$> xexpr <*> xexpr <?> "App"
+  xapp <- rule $ Fix <$> (AppF <$> xexpr <*> xexpr <?> "App")
   xmix <- mixfixExpression table xexpr1 mixfix_combine
 
   return xexpr
 
 
-parseExpr :: String -> Either ParserError Expr
-parseExpr str =
+parseExpr1 :: String -> Either ParserError Expr1
+parseExpr1 str =
   let
     (res,Report{..}) = fullParses (parser expr) $ tokenize str
 
@@ -102,8 +103,11 @@ parseExpr str =
   in
   case nub res of
     []  -> Left $ ParserError err
-    [e] -> Right e
+    [Fix e] -> Right (Fix e)
     xs  -> Left $ ParserError $ show position <> ": multiple outputs: [\n" <>
       unlines (flip map xs (\x -> show x <> ",")) <> "]"
 
+
+parseExpr :: String -> Either ParserError Expr
+parseExpr = either Left (Right . cata embed) . parseExpr1
 

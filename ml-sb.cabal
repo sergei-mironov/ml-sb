@@ -23,6 +23,7 @@ library mlsb
   exposed-modules:
       MLSB.Types
     , MLSB.Parser
+    , MLSB.Printer
     , MLSB.Eval
     , MLSB
   hs-source-dirs:

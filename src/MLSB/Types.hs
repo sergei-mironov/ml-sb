@@ -63,6 +63,35 @@ type ExprW = Fix (Whitespaced ExprF)
 
 type instance Base (Whitespaced ExprF _) = ExprF
 
+
+data Shape = Shape [Integer]
+  deriving(Eq,Ord,Show,Read)
+
+data Type =
+    TConst String
+  | TFun Type Type
+  | TTensor Type Shape
+  deriving(Eq,Ord,Show,Read)
+
+makeBaseFunctor ''Type
+deriveShow1 ''TypeF
+deriveRead1 ''TypeF
+deriveEq1   ''TypeF
+
+type Type1 = Fix TypeF
+
+
+data Typed f a = Typed { tpd_get :: Type1, tpd_next :: f a }
+  deriving(Eq,Show,Read,Functor)
+
+deriveShow1 ''Typed
+deriveRead1 ''Typed
+deriveEq1   ''Typed
+
+type ExprTW = Fix (Typed (Whitespaced ExprF))
+
+type instance Base (Typed _ (Whitespaced ExprF _)) = ExprF
+
 {-
 eqExpr :: Rational -> Expr -> Expr -> Bool
 eqExpr tol ea eb =

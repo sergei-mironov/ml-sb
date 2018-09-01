@@ -92,7 +92,7 @@ main = defaultMain $
         parsesTypeAs " ( a ) -> b" (TApp (TApp (TIdent "->") (TIdent "a")) (TIdent "b"))
         parsesTypeAs "a -> b -> c" (TApp (TApp (TIdent "->") (TIdent "a")) (TApp (TApp (TIdent "->") (TIdent "b")) (TIdent "c")))
         parsesTypeSame "a -> b -> c" "a -> (b -> c)"
-    , testCase "Parse expression" $ do
+    , testCase "Parse unlabeled expression" $ do
         parsesExprAs " a " (Ident "a")
         parsesExprAs "a b" (App (Ident "a") (Ident "b"))
         parsesExprAs "let x = y ; in z" (Let (Pat "x") (Ident "y") (Ident "z"))
@@ -104,6 +104,9 @@ main = defaultMain $
         parsesExprAs "x . x + x" (Lam (Pat "x") (App (App (Ident "+") (Ident "x")) (Ident "x")))
         parsesExprAs "let x = y ; in y + z" (Let (Pat "x") (Ident "y") (App (App (Ident "+") (Ident "y")) (Ident "z")))
         parsesExprAs "a b + c" (App (Ident "a") (App (App (Ident "+") (Ident "b")) (Ident "c")))
+    , testCase "Parse labeled expression" $ do
+        {- FIXME: check lable correctness -}
+        parsesExprAs "let x : int = y ; in z" (Let (Pat "x") (Ident "y") (Ident "z"))
     , testCase "Eval" $ do
         evals "33" (ConstR 33)
         evals "10 + 20" (ConstR 30)

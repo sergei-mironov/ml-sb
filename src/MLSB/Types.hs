@@ -31,6 +31,8 @@ eqConst tol a b =
     (ConstS as,ConstS bs) -> as == bs
     _ -> False
 
+-- | Whitespace container should allow to keep information about comments,
+-- linebreaks, etc.
 data Whitespaced f a = Whitespaced { cm_get :: Maybe String, cm_next :: (f a) }
   deriving(Eq,Show,Read,Functor)
 
@@ -38,6 +40,21 @@ deriveEq1   ''Whitespaced
 deriveShow1 ''Whitespaced
 deriveRead1 ''Whitespaced
 
+-- | Weak type annotation, as defined by user. Possibly wrong or incomoplete
+data Labeled t f a = Labeled { lb_get :: Maybe t, lb_next :: f a }
+  deriving(Eq,Show,Read,Functor)
+
+deriveShow1 ''Labeled
+deriveRead1 ''Labeled
+deriveEq1   ''Labeled
+
+-- | Strong type annotation, checked by the (missing) typechecker
+data Typed t f a = Typed { tpd_get :: t, tpd_next :: f a }
+  deriving(Eq,Show,Read,Functor)
+
+deriveShow1 ''Typed
+deriveRead1 ''Typed
+deriveEq1   ''Typed
 
 data Shape = Shape [Integer]
   deriving(Eq,Ord,Show,Read)
@@ -55,14 +72,6 @@ deriveEq1   ''TypeF
 
 type Type1 = Fix TypeF
 type TypeW = Fix (Whitespaced TypeF)
-
--- | Weak type annotation, as defined by user. Possibly wrong or incomoplete
-data Labeled f a = Labeled { lb_get :: Maybe Type1, lb_next :: f a }
-  deriving(Eq,Show,Read,Functor)
-
-deriveShow1 ''Labeled
-deriveRead1 ''Labeled
-deriveEq1   ''Labeled
 
 -- | Data type representing lambda-calculus expressions.
 data Expr =
@@ -84,23 +93,14 @@ deriveRead1 ''ExprF
 deriveEq1   ''ExprF
 
 
--- | Strong type annotation, checked by the (missing) typechecker
-data Typed f a = Typed { tpd_get :: Type1, tpd_next :: f a }
-  deriving(Eq,Show,Read,Functor)
-
-deriveShow1 ''Typed
-deriveRead1 ''Typed
-deriveEq1   ''Typed
-
-
 type Expr1 = Fix ExprF
-type ExprTW = Fix (Typed (Whitespaced ExprF))
-type ExprLW = Fix (Labeled (Whitespaced ExprF))
+type ExprTW t = Fix (Typed t (Whitespaced ExprF))
+type ExprLW t = Fix (Labeled t (Whitespaced ExprF))
 
 type instance Base (Whitespaced ExprF _) = ExprF
-type instance Base (Labeled _ (Whitespaced ExprF _)) = ExprF
+type instance Base (Labeled _ _ (Whitespaced ExprF _)) = ExprF
 type instance Base (Whitespaced TypeF _) = TypeF
-type instance Base (Typed _ (Whitespaced ExprF _)) = ExprF
+type instance Base (Typed _ _ (Whitespaced ExprF _)) = ExprF
 
 
 {-

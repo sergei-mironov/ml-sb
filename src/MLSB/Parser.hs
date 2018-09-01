@@ -43,7 +43,7 @@ builtin_ids,builtin_ops,whitespace,special :: HashSet Char
 builtin_ids = HashSet.fromList $ ['a'..'z']<>['A'..'Z']<>['0'..'9']<>"_"
 builtin_ops = HashSet.fromList $ "*/+-<>="
 whitespace = HashSet.fromList  $ " \t\n"
-special = HashSet.fromList     $ ";()."
+special = HashSet.fromList     $ ":;()."
 
 data Lex = Ws { unWs :: String } | Cd { unCode :: String }
   deriving(Show,Eq)
@@ -97,13 +97,12 @@ typ =
   return texpr_ws
 
 
-expr :: forall r . Grammar r (Prod r String Lex ExprLW)
-expr =
-
+exprOfType :: forall r t . Grammar r (Prod r String Lex t) -> Grammar r (Prod r String Lex (ExprLW t))
+exprOfType gtyp =
   let
     t1 f a = Fix $ Labeled Nothing $ Whitespaced Nothing $ f a
     t2 f a b = Fix $ Labeled Nothing $ Whitespaced Nothing $ f a b
-    tc c f = Fix $ Labeled Nothing $ Whitespaced c $ f
+    tc c ts f = Fix $ Labeled (listToMaybe ts) $ Whitespaced c $ f
 
     table :: [[(Holey (Prod r String Lex String), Associativity)]]
     table = [
@@ -118,6 +117,8 @@ expr =
 
   in mdo
 
+  xtyp <- gtyp
+
   xexpr1 <- rule $ (ws *> tok "(") *> xexpr <* (ws *> tok ")") <|> xident <|> xconst <?> "Expr1"
   xexpr <- rule $ (ws *> tok "(") *> xexpr <* (ws *> tok ")")
               <|> xapp <|> xident <|> xconst <|> xlet <|> xlam <|> xmix <?> "Expr"
@@ -126,8 +127,8 @@ expr =
   xconst <- rule $ t1 ConstF <$> (ws *> xrational)
   xident <- rule $ t1 IdentF <$> (ws *> (sat isIdent)) <?> "Ident"
   xlam <- rule $ t2 LamF <$> (ws *> xpat) <*> (ws *> tok "." *> ws *> xexpr) <?> "Lambda"
-  xasgn <- rule $ (,,) <$> ws <*> (xpat <* ws <* tok "=") <*> (ws *> xexpr <* ws <* tok ";") <?> "Assign"
-  xlet <- rule $ flip (foldr (\(w,p,e) acc -> tc w (LetF p e acc)))
+  xasgn <- rule $ (,,,) <$> ws <*> (xpat <* ws) <*> (many (tok ":" *> ws *> xtyp <* ws) <* tok "=") <*> (ws *> xexpr <* ws <* tok ";") <?> "Assign"
+  xlet <- rule $ flip (foldr (\(w,p,t,e) acc -> tc w t (LetF p e acc)))
                   <$> (ws *> tok "let" *> some xasgn) <*> (ws *> tok "in" *> xexpr) <?> "Let"
   xapp <- rule $ t2 AppF <$> xexpr <*> xexpr <?> "App"
   xmix <- mixfixExpression table xexpr1 combine
@@ -136,6 +137,8 @@ expr =
 
   return xexpr_ws
 
+expr :: forall r . Grammar r (Prod r String Lex (ExprLW TypeW))
+expr = exprOfType typ
 
 parseC :: (Show x, Eq x) => (forall r . Grammar r (Prod r String Lex x)) -> String -> Either ParserError x
 parseC p str =
@@ -158,7 +161,7 @@ parseTypeC s = parseC typ s
 parseType :: String -> Either ParserError Type
 parseType = either Left (Right . cata (embed . cm_next)) . parseTypeC
 
-parseExprC :: String -> Either ParserError ExprLW
+parseExprC :: String -> Either ParserError (ExprLW TypeW)
 parseExprC s = parseC expr s
 
 parseExpr :: String -> Either ParserError Expr

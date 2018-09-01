@@ -1,0 +1,17 @@
+# float app = x of int[3x43]. int a . (x a) a ;
+# compare : x -> y -> z -> int = a . b . c . 
+
+compare : x -> y -> z -> int = a:int . b:int[3x3] . c .
+  let x = 44;
+      y = 4;
+      z = 99;
+  in
+  z+y;
+
+int t1 = bool y . goo x . image x . image y .
+  let
+    bool z = a . a
+  in
+    z
+  end
+

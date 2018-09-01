@@ -8,5 +8,5 @@ import Data.Monoid((<>))
 
 import MLSB.Types
 
-printExprC :: ExprW -> String
+printExprC :: ExprLW -> String
 printExprC = undefined

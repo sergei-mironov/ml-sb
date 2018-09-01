@@ -31,6 +31,39 @@ eqConst tol a b =
     (ConstS as,ConstS bs) -> as == bs
     _ -> False
 
+data Whitespaced f a = Whitespaced { cm_get :: Maybe String, cm_next :: (f a) }
+  deriving(Eq,Show,Read,Functor)
+
+deriveEq1   ''Whitespaced
+deriveShow1 ''Whitespaced
+deriveRead1 ''Whitespaced
+
+
+data Shape = Shape [Integer]
+  deriving(Eq,Ord,Show,Read)
+
+data Type =
+    TIdent String
+  | TApp Type Type
+  | TTensor Type Shape
+  deriving(Eq,Ord,Show,Read)
+
+makeBaseFunctor ''Type
+deriveShow1 ''TypeF
+deriveRead1 ''TypeF
+deriveEq1   ''TypeF
+
+type Type1 = Fix TypeF
+type TypeW = Fix (Whitespaced TypeF)
+
+-- | Weak type annotation, as defined by user. Possibly wrong or incomoplete
+data Labeled f a = Labeled { lb_get :: Maybe Type1, lb_next :: f a }
+  deriving(Eq,Show,Read,Functor)
+
+deriveShow1 ''Labeled
+deriveRead1 ''Labeled
+deriveEq1   ''Labeled
+
 -- | Data type representing lambda-calculus expressions.
 data Expr =
     Const Const
@@ -50,37 +83,8 @@ deriveShow1 ''ExprF
 deriveRead1 ''ExprF
 deriveEq1   ''ExprF
 
-type Expr1 = Fix ExprF
 
-data Whitespaced f a = Whitespaced { cm_get :: Maybe String, cm_next :: (f a) }
-  deriving(Eq,Show,Read,Functor)
-
-deriveShow1 ''Whitespaced
-deriveRead1 ''Whitespaced
-deriveEq1   ''Whitespaced
-
-type ExprW = Fix (Whitespaced ExprF)
-
-type instance Base (Whitespaced ExprF _) = ExprF
-
-
-data Shape = Shape [Integer]
-  deriving(Eq,Ord,Show,Read)
-
-data Type =
-    TConst String
-  | TFun Type Type
-  | TTensor Type Shape
-  deriving(Eq,Ord,Show,Read)
-
-makeBaseFunctor ''Type
-deriveShow1 ''TypeF
-deriveRead1 ''TypeF
-deriveEq1   ''TypeF
-
-type Type1 = Fix TypeF
-
-
+-- | Strong type annotation, checked by the (missing) typechecker
 data Typed f a = Typed { tpd_get :: Type1, tpd_next :: f a }
   deriving(Eq,Show,Read,Functor)
 
@@ -88,9 +92,16 @@ deriveShow1 ''Typed
 deriveRead1 ''Typed
 deriveEq1   ''Typed
 
-type ExprTW = Fix (Typed (Whitespaced ExprF))
 
+type Expr1 = Fix ExprF
+type ExprTW = Fix (Typed (Whitespaced ExprF))
+type ExprLW = Fix (Labeled (Whitespaced ExprF))
+
+type instance Base (Whitespaced ExprF _) = ExprF
+type instance Base (Labeled _ (Whitespaced ExprF _)) = ExprF
+type instance Base (Whitespaced TypeF _) = TypeF
 type instance Base (Typed _ (Whitespaced ExprF _)) = ExprF
+
 
 {-
 eqExpr :: Rational -> Expr -> Expr -> Bool

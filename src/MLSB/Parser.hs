@@ -2,8 +2,17 @@
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE Rank2Types #-}
 
-module MLSB.Parser where
+module MLSB.Parser (
+    parseTypeC
+  , parseType
+  , parseExprC
+  , parseExpr
+  , ParserError(..)
+  , tokenize
+  , Lex(..)
+  ) where
 
 import qualified Data.HashSet as HashSet
 
@@ -24,11 +33,11 @@ import MLSB.Types
 data ParserError = ParserError String
   deriving(Show, Eq, Ord)
 
-holey :: String -> Holey Lex
-holey ""       = []
-holey ('_':xs) = Nothing : holey xs
-holey xs       = Just (Cd i) : holey rest
-  where (i, rest) = span (/= '_') xs
+-- holey :: String -> Holey Lex
+-- holey ""       = []
+-- holey ('_':xs) = Nothing : holey xs
+-- holey xs       = Just (Cd i) : holey rest
+--   where (i, rest) = span (/= '_') xs
 
 builtin_ids,builtin_ops,whitespace,special :: HashSet Char
 builtin_ids = HashSet.fromList $ ['a'..'z']<>['A'..'Z']<>['0'..'9']<>"_"
@@ -57,17 +66,44 @@ isIdent = \case
   (x:xs) -> isAlpha x && all isAlphaNum xs
   _ -> False
 
-expr :: forall r . Grammar r (Prod r String Lex ExprW)
-expr =
 
+tok t = unCode <$> token (Cd t)
+sat f = unCode <$> (satisfy $ \case { Cd c -> f c; _ -> False })
+ws = fmap unWs <$> listToMaybe <$> (many (satisfy $ \case { Ws _ -> True; _ -> False }))
+
+typ :: forall r . Grammar r (Prod r String Lex TypeW)
+typ =
   let
-    tok t = unCode <$> token (Cd t)
-    sat f = unCode <$> (satisfy $ \case { Cd c -> f c; _ -> False })
-    ws = fmap unWs <$> listToMaybe <$> (many (satisfy $ \case { Ws _ -> True; _ -> False }))
     t1 f a = Fix $ Whitespaced Nothing $ f a
     t2 f a b = Fix $ Whitespaced Nothing $ f a b
     tc c f = Fix $ Whitespaced c $ f
 
+    table :: [[(Holey (Prod r String Lex String), Associativity)]]
+    table = [
+          [([Nothing, Just (ws *> tok "->"), Nothing], LeftAssoc)]
+        ]
+
+    combine [Nothing, Just oper, Nothing] exprs = foldl1 (\a b -> t2 TAppF a b) ((t1 TIdentF oper):exprs)
+    combine h _ = error $ "combine: not-implemented for " <> show h
+
+  in mdo
+  tident <- rule $ t1 TIdentF <$> (ws *> (sat isIdent)) <?> "TIdent"
+  texpr1 <- rule $ (ws *> tok "(") *> texpr <* (ws *> tok ")") <|> tident <?> "Type1"
+  texpr <- rule $ texpr1 <|> tapp <|> tmix <?> "TExpr"
+  tapp <- rule $ t2 TAppF <$> texpr <*> texpr <?> "TApp"
+  tmix <- mixfixExpression table texpr1 combine
+
+  texpr_ws <- rule $ texpr <* ws
+  return texpr_ws
+
+
+expr :: forall r . Grammar r (Prod r String Lex ExprLW)
+expr =
+
+  let
+    t1 f a = Fix $ Labeled Nothing $ Whitespaced Nothing $ f a
+    t2 f a b = Fix $ Labeled Nothing $ Whitespaced Nothing $ f a b
+    tc c f = Fix $ Labeled Nothing $ Whitespaced c $ f
 
     table :: [[(Holey (Prod r String Lex String), Associativity)]]
     table = [
@@ -101,11 +137,10 @@ expr =
   return xexpr_ws
 
 
-
-parseExprC :: String -> Either ParserError ExprW
-parseExprC str =
+parseC :: (Show x, Eq x) => (forall r . Grammar r (Prod r String Lex x)) -> String -> Either ParserError x
+parseC p str =
   let
-    (res,Report{..}) = fullParses (parser expr) $ tokenize str
+    (res,Report{..}) = fullParses (parser p) $ tokenize str
 
     err = "Pos: " <> show position
        <> ": unconsumed: " <> show unconsumed
@@ -117,8 +152,16 @@ parseExprC str =
     xs  -> Left $ ParserError $ show position <> ": multiple outputs: [\n" <>
       unlines (flip map xs (\x -> show x <> ",")) <> "]"
 
+parseTypeC :: String -> Either ParserError TypeW
+parseTypeC s = parseC typ s
+
+parseType :: String -> Either ParserError Type
+parseType = either Left (Right . cata (embed . cm_next)) . parseTypeC
+
+parseExprC :: String -> Either ParserError ExprLW
+parseExprC s = parseC expr s
 
 parseExpr :: String -> Either ParserError Expr
-parseExpr = either Left (Right . cata (embed . cm_next)) . parseExprC
+parseExpr = either Left (Right . cata (embed . cm_next . lb_next)) . parseExprC
 
 

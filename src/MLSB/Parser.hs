@@ -80,7 +80,7 @@ typ =
 
     table :: [[(Holey (Prod r String Lex String), Associativity)]]
     table = [
-          [([Nothing, Just (ws *> tok "->"), Nothing], LeftAssoc)]
+          [([Nothing, Just (ws *> tok "->"), Nothing], RightAssoc)]
         ]
 
     combine [Nothing, Just oper, Nothing] exprs = foldl1 (\a b -> t2 TAppF a b) ((t1 TIdentF oper):exprs)

@@ -10,19 +10,40 @@ import Data.Monoid ((<>))
 
 import MLSB
 
-parses' :: (Monad m, Show x) =>
+parsesM' :: (Monad m, Eq x, Show x) =>
+     (String -> Either ParserError x)
+  -> String
+  -> String
+  -> (x -> m Bool)
+  -> m ()
+parsesM' p msg s mchk =
+  let
+    err details = fail $ "Failed to parse '" <> s <> "': " <> details <> ". " <> msg
+  in
+  case p s of
+    Right e -> do
+      ok <- mchk e
+      when (not ok) $ err $ "Unexpected: " <> show e
+    Left (ParserError report) -> err report
+
+parses' :: (Monad m, Eq x, Show x) =>
      (String -> Either ParserError x)
   -> String
   -> String
   -> (x -> Bool)
   -> m ()
-parses' p msg s chk =
-  let
-    err details = fail $ "Failed to parse '" <> s <> "': " <> details <> ". " <> msg
-  in
-  case p s of
-    Right e -> when (not $ chk e) $ err $ "Unexpected: " <> show e
-    Left (ParserError report) -> err report
+parses' p msg s1 f = parsesM' p msg s1 (return . f)
+
+parsesSame' :: (Monad m, Eq x, Show x) =>
+     (String -> Either ParserError x)
+  -> String
+  -> String
+  -> m ()
+parsesSame' p s1 s2 =
+  parsesM' p "" s1 (\x1 -> do
+    parsesM' p "" s2 (\x2 -> do
+      return (x1 == x2))
+    return True)
 
 parsesExpr :: (Monad m) => String -> m ()
 parsesExpr s = parses' parseExpr "Expected any Right-result" s (const True)
@@ -35,6 +56,12 @@ parsesType s = parses' parseType "Expected any Right-result" s (const True)
 
 parsesTypeAs :: (Monad m) => String -> Type -> m ()
 parsesTypeAs s ans = parses' parseType ("Expected: (" <> show ans <> ") type") s (==ans)
+
+parsesExprSame :: (Monad m) => String -> String -> m ()
+parsesExprSame s1 s2 = parsesSame' parseExpr s1 s2
+
+parsesTypeSame :: (Monad m) => String -> String -> m ()
+parsesTypeSame s1 s2 = parsesSame' parseType s1 s2
 
 closeVal :: Val -> Val -> Bool
 closeVal = eqVal (1e-5)
@@ -63,6 +90,8 @@ main = defaultMain $
         parsesTypeAs " a " (TIdent "a")
         parsesTypeAs "a b" (TApp (TIdent "a") (TIdent "b"))
         parsesTypeAs " ( a ) -> b" (TApp (TApp (TIdent "->") (TIdent "a")) (TIdent "b"))
+        parsesTypeAs "a -> b -> c" (TApp (TApp (TIdent "->") (TIdent "a")) (TApp (TApp (TIdent "->") (TIdent "b")) (TIdent "c")))
+        parsesTypeSame "a -> b -> c" "a -> (b -> c)"
     , testCase "Parse expression" $ do
         parsesExprAs " a " (Ident "a")
         parsesExprAs "a b" (App (Ident "a") (Ident "b"))

@@ -56,13 +56,25 @@ deriveShow1 ''Typed
 deriveRead1 ''Typed
 deriveEq1   ''Typed
 
-data Shape = Shape [Integer]
+data Shape =
+    STail
+  | SConsI Id Shape
+  -- ^ Shape variable
+  | SConsC Integer Shape
+  -- ^ Shape const
   deriving(Eq,Ord,Show,Read)
 
+makeBaseFunctor ''Shape
+deriveShow1 ''ShapeF
+deriveRead1 ''ShapeF
+deriveEq1   ''ShapeF
+
 data Type =
-    TIdent String
+    TConst String (Maybe Shape)
+  -- ^ a, b, c[3x4], d[3xN], (->)
+  | TIdent String
   | TApp Type Type
-  | TTensor Type Shape
+  | TLam Pat Type
   deriving(Eq,Ord,Show,Read)
 
 makeBaseFunctor ''Type
@@ -101,22 +113,6 @@ type instance Base (Whitespaced ExprF _) = ExprF
 type instance Base (Labeled _ _ (Whitespaced ExprF _)) = ExprF
 type instance Base (Whitespaced TypeF _) = TypeF
 type instance Base (Typed _ _ (Whitespaced ExprF _)) = ExprF
-
-
-{-
-eqExpr :: Rational -> Expr -> Expr -> Bool
-eqExpr tol ea eb =
-  let
-    go a b = eqExpr tol a b
-  in
-  case (ea, eb) of
-    (Const ca,Const cb) -> eqConst tol ca cb
-    (Ident a,Ident b) -> a==b
-    (Lam p1 e1,Lam p2 e2) -> p1==p2 && (go e1 e2)
-    (Let p1 ea1 eb1,Let p2 ea2 eb2) -> p1==p2 && (go ea1 ea2) && (go eb1 eb2)
-    (App ea1 ea2,App eb1 eb2) -> (go ea1 ea2) && (go eb1 eb2)
-    _ -> False
--}
 
 data Program = Program Expr
   deriving (Show,Read)

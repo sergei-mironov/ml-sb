@@ -87,11 +87,15 @@ main = defaultMain $
         tokenize "x==y" @?= [Cd "x",Cd "==",Cd "y"]
         tokenize "x;23+(zzz)" @?= [Cd "x",Cd ";",Cd "23",Cd "+",Cd "(",Cd "zzz",Cd ")"]
     , testCase "Parse types" $ do
-        parsesTypeAs " a " (TIdent "a")
-        parsesTypeAs "a b" (TApp (TIdent "a") (TIdent "b"))
-        parsesTypeAs " ( a ) -> b" (TApp (TApp (TIdent "->") (TIdent "a")) (TIdent "b"))
-        parsesTypeAs "a -> b -> c" (TApp (TApp (TIdent "->") (TIdent "a")) (TApp (TApp (TIdent "->") (TIdent "b")) (TIdent "c")))
+        let tc x = TConst x Nothing
+        parsesTypeAs " a " (tc "a")
+        parsesTypeAs "a b" (TApp (tc "a") (tc "b"))
+        parsesTypeAs " a -> b"     (TApp (TApp (TIdent "->") (tc "a")) (tc "b"))
+        parsesTypeAs " ( a ) -> b" (TApp (TApp (TIdent "->") (tc "a")) (tc "b"))
+        parsesTypeAs "a -> b -> c" (TApp (TApp (TIdent "->") (tc "a")) (TApp (TApp (TIdent "->") (tc "b")) (tc "c")))
         parsesTypeSame "a -> b -> c" "a -> (b -> c)"
+        parsesTypeAs " a [ 3 , 2 ]" (TConst "a" (Just (SConsC 3 (SConsC 2 STail))))
+        parsesTypeAs " a [ 3 , x ]" (TConst "a" (Just (SConsC 3 (SConsI "x" STail))))
     , testCase "Parse unlabeled expression" $ do
         parsesExprAs " a " (Ident "a")
         parsesExprAs "a b" (App (Ident "a") (Ident "b"))
@@ -105,7 +109,7 @@ main = defaultMain $
         parsesExprAs "let x = y ; in y + z" (Let (Pat "x") (Ident "y") (App (App (Ident "+") (Ident "y")) (Ident "z")))
         parsesExprAs "a b + c" (App (Ident "a") (App (App (Ident "+") (Ident "b")) (Ident "c")))
     , testCase "Parse labeled expression" $ do
-        {- FIXME: check lable correctness -}
+        {- FIXME: check type label correctness -}
         parsesExprAs "let x : int = y ; in z" (Let (Pat "x") (Ident "y") (Ident "z"))
     , testCase "Eval" $ do
         evals "33" (ConstR 33)

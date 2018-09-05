@@ -5,13 +5,13 @@
 {-# LANGUAGE Rank2Types #-}
 
 module MLSB.Parser (
-    parseTypeC
+    ParserError(..)
+  , Lex(..)
+  , tokenize
+  , parseTypeC
   , parseType
   , parseExprC
   , parseExpr
-  , ParserError(..)
-  , tokenize
-  , Lex(..)
   ) where
 
 import qualified Data.HashSet as HashSet
@@ -33,17 +33,11 @@ import MLSB.Types
 data ParserError = ParserError String
   deriving(Show, Eq, Ord)
 
--- holey :: String -> Holey Lex
--- holey ""       = []
--- holey ('_':xs) = Nothing : holey xs
--- holey xs       = Just (Cd i) : holey rest
---   where (i, rest) = span (/= '_') xs
-
 builtin_ids,builtin_ops,whitespace,special :: HashSet Char
 builtin_ids = HashSet.fromList $ ['a'..'z']<>['A'..'Z']<>['0'..'9']<>"_"
 builtin_ops = HashSet.fromList $ "*/+-<>="
 whitespace = HashSet.fromList  $ " \t\n"
-special = HashSet.fromList     $ ":;()."
+special = HashSet.fromList     $ ":;()[].,"
 
 data Lex = Ws { unWs :: String } | Cd { unCode :: String }
   deriving(Show,Eq)
@@ -66,17 +60,17 @@ isIdent = \case
   (x:xs) -> isAlpha x && all isAlphaNum xs
   _ -> False
 
-
 tok t = unCode <$> token (Cd t)
 sat f = unCode <$> (satisfy $ \case { Cd c -> f c; _ -> False })
 ws = fmap unWs <$> listToMaybe <$> (many (satisfy $ \case { Ws _ -> True; _ -> False }))
+opt x = (Just <$> x) <|> pure Nothing
 
 typ :: forall r . Grammar r (Prod r String Lex TypeW)
 typ =
   let
-    t1 f a = Fix $ Whitespaced Nothing $ f a
+    t1 f a   = Fix $ Whitespaced Nothing $ f a
     t2 f a b = Fix $ Whitespaced Nothing $ f a b
-    tc c f = Fix $ Whitespaced c $ f
+    tc c f   = Fix $ Whitespaced c $ f
 
     table :: [[(Holey (Prod r String Lex String), Associativity)]]
     table = [
@@ -87,7 +81,13 @@ typ =
     combine h _ = error $ "combine: not-implemented for " <> show h
 
   in mdo
-  tident <- rule $ t1 TIdentF <$> (ws *> (sat isIdent)) <?> "TIdent"
+  -- FIXME: this version shouldn't support 1-element shapes
+  tshape0 <- rule $ ws *> pure STail <?> "STail"
+  tshapeI <- rule $ SConsI <$> (ws *> sat isIdent) <*> (ws *> tok "," *> tshape <|> tshape0) <?> "SConsC"
+  tshapeC <- rule $ SConsC <$> (ws *> (read <$> sat (all isDigit))) <*> (ws *> tok "," *> tshape <|> tshape0) <?> "SConsI"
+  tshape <- rule $ tshapeI <|> tshapeC <|> tshape0 <?> "TShape0"
+
+  tident <- rule $ t2 TConstF <$> (ws *> (sat isIdent)) <*> (opt (ws *> tok "[" *> tshape <* ws <* tok "]")) <?> "TConst"
   texpr1 <- rule $ (ws *> tok "(") *> texpr <* (ws *> tok ")") <|> tident <?> "Type1"
   texpr <- rule $ texpr1 <|> tapp <|> tmix <?> "TExpr"
   tapp <- rule $ t2 TAppF <$> texpr <*> texpr <?> "TApp"

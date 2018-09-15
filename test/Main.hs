@@ -108,6 +108,9 @@ main = defaultMain $
         parsesExprAs "x . x + x" (Lam (Pat "x") (App (App (Ident "+") (Ident "x")) (Ident "x")))
         parsesExprAs "let x = y ; in y + z" (Let (Pat "x") (Ident "y") (App (App (Ident "+") (Ident "y")) (Ident "z")))
         parsesExprAs "a b + c" (App (Ident "a") (App (App (Ident "+") (Ident "b")) (Ident "c")))
+        parsesExprAs "a [b + c, 10]" (Slice (Ident "a") [App (App (Ident "+") (Ident "b")) (Ident "c"),Const (ConstR (10))])
+        parsesExprAs "x + y[10]"  (App (App (Ident "+") (Ident "x")) (Slice (Ident "y") [Const (ConstR (10))]))
+        parsesExprAs "x y[10]" (App (Ident "x") (Slice (Ident "y") [Const (ConstR (10))]))
     , testCase "Parse labeled expression" $ do
         {- FIXME: check type label correctness -}
         parsesExprAs "let x : int = y ; in z" (Let (Pat "x") (Ident "y") (Ident "z"))

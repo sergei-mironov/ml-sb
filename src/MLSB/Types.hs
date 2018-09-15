@@ -97,6 +97,8 @@ data Expr =
     -- ^ Let-binding
   | App Expr Expr
     -- ^ Application
+  | Slice Expr [Expr]
+    -- ^ Tensor-like slice
   deriving (Eq,Ord,Show,Read)
 
 makeBaseFunctor ''Expr

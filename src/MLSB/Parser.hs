@@ -119,7 +119,7 @@ exprOfType gtyp =
 
   xtyp <- gtyp
 
-  xexpr1 <- rule $ (ws *> tok "(") *> xexpr <* (ws *> tok ")") <|> xident <|> xconst <?> "Expr1"
+  xexpr1 <- rule $ (ws *> tok "(") *> xexpr <* (ws *> tok ")") <|> xslice <|> xident <|> xconst <?> "Expr1"
   xexpr <- rule $ (ws *> tok "(") *> xexpr <* (ws *> tok ")")
               <|> xapp <|> xident <|> xconst <|> xlet <|> xlam <|> xmix <?> "Expr"
   xrational <- rule $ ConstR <$> ((fromInteger . read) <$> sat (all isDigit)) <?> "Rational" -- FIXME: accept non-int
@@ -132,6 +132,8 @@ exprOfType gtyp =
                   <$> (ws *> tok "let" *> some xasgn) <*> (ws *> tok "in" *> xexpr) <?> "Let"
   xapp <- rule $ t2 AppF <$> xexpr <*> xexpr <?> "App"
   xmix <- mixfixExpression table xexpr1 combine
+  xslice <- rule $ t2 SliceF <$> xexpr1 <*> (ws *> tok "[" *> xdims <* ws <* tok "]") <?> "Slice"
+  xdims <- rule $ (:) <$> xexpr <*> ((many (ws *> tok "," *> xexpr)) <|> pure []) <?> "Dims"
 
   xexpr_ws <- rule $ xexpr <* ws
 

@@ -57,6 +57,12 @@ parsesType s = parses' parseType "Expected any Right-result" s (const True)
 parsesTypeAs :: (Monad m) => String -> Type -> m ()
 parsesTypeAs s ans = parses' parseType ("Expected: (" <> show ans <> ") type") s (==ans)
 
+parsesShape :: (Monad m) => String -> m ()
+parsesShape s = parses' parseShape "Expected any Right-result" s (const True)
+
+parsesShapeAs :: (Monad m) => String -> Shape -> m ()
+parsesShapeAs s ans = parses' parseShape ("Expected: (" <> show ans <> ") type") s (==ans)
+
 parsesExprSame :: (Monad m) => String -> String -> m ()
 parsesExprSame s1 s2 = parsesSame' parseExpr s1 s2
 
@@ -86,9 +92,11 @@ main = defaultMain $
         tokenize "x (=<>=) y" @?= [Cd "x", Ws " ", Cd"(",Cd "=<>=",Cd ")",Ws " ", Cd "y"]
         tokenize "x==y" @?= [Cd "x",Cd "==",Cd "y"]
         tokenize "x;23+(zzz)" @?= [Cd "x",Cd ";",Cd "23",Cd "+",Cd "(",Cd "zzz",Cd ")"]
+    , testCase "Parse shapes" $ do
+        parsesShapeAs " [ 10 ]" (SConsC 10 STail)
     , testCase "Parse types" $ do
         let tc x = TConst x Nothing
-        parsesTypeAs " a " (tc "a")
+        parsesTypeAs " a" (tc "a")
         parsesTypeAs "a b" (TApp (tc "a") (tc "b"))
         parsesTypeAs " a -> b"     (TApp (TApp (TIdent "->") (tc "a")) (tc "b"))
         parsesTypeAs " ( a ) -> b" (TApp (TApp (TIdent "->") (tc "a")) (tc "b"))

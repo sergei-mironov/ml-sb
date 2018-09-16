@@ -56,6 +56,14 @@ deriveShow1 ''Typed
 deriveRead1 ''Typed
 deriveEq1   ''Typed
 
+-- | Strong type annotation, checked by the (missing) typechecker
+data Shaped s f a = Shaped { shp_get :: s, shp_next :: f a }
+  deriving(Eq,Show,Read,Functor)
+
+deriveShow1 ''Shaped
+deriveRead1 ''Shaped
+deriveEq1   ''Shaped
+
 data Shape =
     STail
   | SConsI Id Shape
@@ -68,6 +76,9 @@ makeBaseFunctor ''Shape
 deriveShow1 ''ShapeF
 deriveRead1 ''ShapeF
 deriveEq1   ''ShapeF
+
+type Shape1 = Fix ShapeF
+type ShapeW = Fix (Whitespaced ShapeF)
 
 data Type =
     TConst String (Maybe Shape)
@@ -84,6 +95,7 @@ deriveEq1   ''TypeF
 
 type Type1 = Fix TypeF
 type TypeW = Fix (Whitespaced TypeF)
+type TypeSW s = Fix (Shaped s (Whitespaced TypeF))
 
 -- | Data type representing lambda-calculus expressions.
 data Expr =

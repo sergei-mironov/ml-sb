@@ -8,6 +8,8 @@ module MLSB.Parser (
     ParserError(..)
   , Lex(..)
   , tokenize
+  , parseShapeC
+  , parseShape
   , parseTypeC
   , parseType
   , parseExprC
@@ -16,7 +18,7 @@ module MLSB.Parser (
 
 import qualified Data.HashSet as HashSet
 
-import Control.Applicative((<$>),(<*>),(*>),(<*),(<|>),pure,many,some)
+import Control.Applicative((<$>),(<*>),(*>),(<*),(<|>),pure,many,some,Alternative)
 import Control.Arrow
 import Data.Char
 import Data.Foldable(foldr1)
@@ -60,17 +62,43 @@ isIdent = \case
   (x:xs) -> isAlpha x && all isAlphaNum xs
   _ -> False
 
+tok :: String -> Prod r e Lex String
 tok t = unCode <$> token (Cd t)
+sat :: (String -> Bool) -> Prod r e Lex String
 sat f = unCode <$> (satisfy $ \case { Cd c -> f c; _ -> False })
+ws :: Prod r e Lex (Maybe String)
 ws = fmap unWs <$> listToMaybe <$> (many (satisfy $ \case { Ws _ -> True; _ -> False }))
+opt :: Alternative f => f a -> f (Maybe a)
 opt x = (Just <$> x) <|> pure Nothing
 
+
+-- | Parser of Shapes
+--
+-- Note: we DON'T allow trailing whitespaces by this parser
+shape :: forall r . Grammar r (Prod r String Lex ShapeW)
+shape =
+  let
+    t0 f = Fix $ Whitespaced Nothing $ f
+    -- t1 f a   = Fix $ Whitespaced Nothing $ f a
+    t2 f a b = Fix $ Whitespaced Nothing $ f a b
+    -- tc c f   = Fix $ Whitespaced c $ f
+  in mdo
+  shape0 <- rule $ pure (t0 STailF) <* ws <?> "STail"
+  shapeI <- rule $ t2 SConsIF <$> (ws *> sat isIdent) <*> (ws *> tok "," *> shapeX <|> shape0) <?> "SConsC"
+  shapeC <- rule $ t2 SConsCF <$> (ws *> (read <$> sat (all isDigit))) <*> (ws *> tok "," *> shapeX <|> shape0) <?> "SConsI"
+  shapeX <- rule $ shapeI <|> shapeC <|> shape0 <?> "Shape0"
+  swrapped <- rule $ ws *> tok "[" *> shapeX <* ws <* tok "]" <?> "Swrapped"
+  return swrapped
+
+-- |  Parser of Types
+--
+-- Note: we DON'T allow trailing whitespaces by this parser
 typ :: forall r . Grammar r (Prod r String Lex TypeW)
 typ =
   let
     t1 f a   = Fix $ Whitespaced Nothing $ f a
     t2 f a b = Fix $ Whitespaced Nothing $ f a b
-    tc c f   = Fix $ Whitespaced c $ f
+    -- tc c f   = Fix $ Whitespaced c $ f
 
     table :: [[(Holey (Prod r String Lex String), Associativity)]]
     table = [
@@ -82,6 +110,7 @@ typ =
 
   in mdo
   -- FIXME: this version shouldn't support 1-element shapes
+  -- FIXME: keep parenteses information
   tshape0 <- rule $ ws *> pure STail <?> "STail"
   tshapeI <- rule $ SConsI <$> (ws *> sat isIdent) <*> (ws *> tok "," *> tshape <|> tshape0) <?> "SConsC"
   tshapeC <- rule $ SConsC <$> (ws *> (read <$> sat (all isDigit))) <*> (ws *> tok "," *> tshape <|> tshape0) <?> "SConsI"
@@ -92,11 +121,12 @@ typ =
   texpr <- rule $ texpr1 <|> tapp <|> tmix <?> "TExpr"
   tapp <- rule $ t2 TAppF <$> texpr <*> texpr <?> "TApp"
   tmix <- mixfixExpression table texpr1 combine
-
-  texpr_ws <- rule $ texpr <* ws
-  return texpr_ws
+  return texpr
 
 
+-- | Take parser of types as argument, build parser of typed expressions
+--
+-- Note: we DO allow trailing whitespaces by this parser
 exprOfType :: forall r t . Grammar r (Prod r String Lex t) -> Grammar r (Prod r String Lex (ExprLW t))
 exprOfType gtyp =
   let
@@ -142,7 +172,7 @@ exprOfType gtyp =
 expr :: forall r . Grammar r (Prod r String Lex (ExprLW TypeW))
 expr = exprOfType typ
 
-parseC :: (Show x, Eq x) => (forall r . Grammar r (Prod r String Lex x)) -> String -> Either ParserError x
+parseC :: (Show x, Eq x) =>(forall r . Grammar r (Prod r String Lex x)) -> String -> Either ParserError x
 parseC p str =
   let
     (res,Report{..}) = fullParses (parser p) $ tokenize str
@@ -156,6 +186,12 @@ parseC p str =
     [e] -> Right e
     xs  -> Left $ ParserError $ show position <> ": multiple outputs: [\n" <>
       unlines (flip map xs (\x -> show x <> ",")) <> "]"
+
+parseShapeC :: String -> Either ParserError ShapeW
+parseShapeC s = parseC shape s
+
+parseShape :: String -> Either ParserError Shape
+parseShape = either Left (Right . cata (embed . cm_next)) . parseShapeC
 
 parseTypeC :: String -> Either ParserError TypeW
 parseTypeC s = parseC typ s

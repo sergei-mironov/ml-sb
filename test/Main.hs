@@ -54,7 +54,7 @@ parsesExprAs s ans = parses' parseExpr ("Expected: (" <> show ans <> ") expr") s
 parsesType :: (Monad m) => String -> m ()
 parsesType s = parses' parseType "Expected any Right-result" s (const True)
 
-parsesTypeAs :: (Monad m) => String -> Type -> m ()
+parsesTypeAs :: (Monad m) => String -> (Type,Shape) -> m ()
 parsesTypeAs s ans = parses' parseType ("Expected: (" <> show ans <> ") type") s (==ans)
 
 parsesShape :: (Monad m) => String -> m ()
@@ -93,17 +93,20 @@ main = defaultMain $
         tokenize "x==y" @?= [Cd "x",Cd "==",Cd "y"]
         tokenize "x;23+(zzz)" @?= [Cd "x",Cd ";",Cd "23",Cd "+",Cd "(",Cd "zzz",Cd ")"]
     , testCase "Parse shapes" $ do
+        parsesShapeAs "" (STail)
+        parsesShapeAs " [ ]" (STail)
         parsesShapeAs " [ 10 ]" (SConsC 10 STail)
+        parsesShapeAs " [ 10, 20 , 30 ,40 ]" (SConsC 10 (SConsC 20 (SConsC 30 (SConsC 40 STail))))
     , testCase "Parse types" $ do
-        let tc x = TConst x Nothing
-        parsesTypeAs " a" (tc "a")
-        parsesTypeAs "a b" (TApp (tc "a") (tc "b"))
-        parsesTypeAs " a -> b"     (TApp (TApp (TIdent "->") (tc "a")) (tc "b"))
-        parsesTypeAs " ( a ) -> b" (TApp (TApp (TIdent "->") (tc "a")) (tc "b"))
-        parsesTypeAs "a -> b -> c" (TApp (TApp (TIdent "->") (tc "a")) (TApp (TApp (TIdent "->") (tc "b")) (tc "c")))
+        let tc x = TConst x
+        parsesTypeAs " a" (tc "a", STail)
+        parsesTypeAs "a b" (TApp (tc "a") (tc "b"), STail)
+        parsesTypeAs " a -> b"     (TApp (TApp (TIdent "->") (tc "a")) (tc "b"), STail)
+        parsesTypeAs " ( a ) -> b" (TApp (TApp (TIdent "->") (tc "a")) (tc "b"), STail)
+        parsesTypeAs "a -> b -> c" (TApp (TApp (TIdent "->") (tc "a")) (TApp (TApp (TIdent "->") (tc "b")) (tc "c")), STail)
         parsesTypeSame "a -> b -> c" "a -> (b -> c)"
-        parsesTypeAs " a [ 3 , 2 ]" (TConst "a" (Just (SConsC 3 (SConsC 2 STail))))
-        parsesTypeAs " a [ 3 , x ]" (TConst "a" (Just (SConsC 3 (SConsI "x" STail))))
+        parsesTypeAs " a [ 3 , 2 ]" (TConst "a", SConsC 3 (SConsC 2 STail))
+        parsesTypeAs " a[ 3 , x ]" (TConst "a", SConsC 3 (SConsI "x" STail))
     , testCase "Parse unlabeled expression" $ do
         parsesExprAs " a " (Ident "a")
         parsesExprAs "a b" (App (Ident "a") (Ident "b"))

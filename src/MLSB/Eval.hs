@@ -40,6 +40,7 @@ evalExpr env expr =
       case evalExpr env elam of
         ValFn f -> f (evalExpr env earg)
         val -> error "Unable to apply to non-lambda"
+    Slice _ _ -> error "Slicing is not implemented"
 
 evalExpr1 :: Env -> Expr1 -> Val
 evalExpr1 env = evalExpr env . cata embed

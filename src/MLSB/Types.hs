@@ -11,7 +11,7 @@ import Text.Show.Deriving (deriveShow1)
 import Text.Read.Deriving (deriveRead1)
 import Data.Eq.Deriving (deriveEq1)
 import Data.Functor.Classes (Show1(..))
-import Data.Functor.Foldable (Base, Fix(..), Recursive(..), Corecursive(..))
+import Data.Functor.Foldable (Base, Fix(..), Recursive(..), Corecursive(..), unfix)
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 
 type Id = String
@@ -56,7 +56,8 @@ deriveShow1 ''Typed
 deriveRead1 ''Typed
 deriveEq1   ''Typed
 
--- | Strong type annotation, checked by the (missing) typechecker
+-- | Types annotated with shapes
+--   a, b, c[3x4], d[3xN], (->)
 data Shaped s f a = Shaped { shp_get :: s, shp_next :: f a }
   deriving(Eq,Show,Read,Functor)
 
@@ -81,8 +82,7 @@ type Shape1 = Fix ShapeF
 type ShapeW = Fix (Whitespaced ShapeF)
 
 data Type =
-    TConst String (Maybe Shape)
-  -- ^ a, b, c[3x4], d[3xN], (->)
+    TConst String
   | TIdent String
   | TApp Type Type
   | TLam Pat Type
@@ -95,7 +95,7 @@ deriveEq1   ''TypeF
 
 type Type1 = Fix TypeF
 type TypeW = Fix (Whitespaced TypeF)
-type TypeSW s = Fix (Shaped s (Whitespaced TypeF))
+type TypeSW = Fix (Shaped ShapeW (Whitespaced TypeF))
 
 -- | Data type representing lambda-calculus expressions.
 data Expr =
@@ -120,13 +120,23 @@ deriveEq1   ''ExprF
 
 
 type Expr1 = Fix ExprF
-type ExprTW t = Fix (Typed t (Whitespaced ExprF))
-type ExprLW t = Fix (Labeled t (Whitespaced ExprF))
+type ExprTW = Fix (Typed TypeSW (Whitespaced ExprF))
+type ExprLW = Fix (Labeled TypeSW (Whitespaced ExprF))
 
 type instance Base (Whitespaced ExprF _) = ExprF
-type instance Base (Labeled _ _ (Whitespaced ExprF _)) = ExprF
+type instance Base (Labeled _ (Whitespaced ExprF) _) = ExprF
 type instance Base (Whitespaced TypeF _) = TypeF
-type instance Base (Typed _ _ (Whitespaced ExprF _)) = ExprF
+type instance Base (Typed _ (Whitespaced ExprF) _) = ExprF
+type instance Base (Shaped _ (Whitespaced TypeF) _) = TypeF
+type instance Base (Whitespaced ShapeF _) = ShapeF
+
+test1 :: ShapeW ->
+        Whitespaced ShapeF (Fix (Whitespaced ShapeF))
+test1 v = unfix v
+
+test2 :: TypeSW ->
+        Shaped ShapeW (Whitespaced TypeF) (Fix (Shaped ShapeW (Whitespaced TypeF)))
+test2 v = unfix v
 
 data Program = Program Expr
   deriving (Show,Read)

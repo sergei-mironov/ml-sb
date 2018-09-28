@@ -10,19 +10,19 @@ import Data.Monoid((<>))
 
 import MLSB.Types
 
-printShape :: Shape -> String
-printShape s = "[" <> go s where
-  go STail = "]"
-  go (SConsI val STail) = show val <> "]"
-  go (SConsI val sh) = val <> "," <> go sh
-  go (SConsC val STail) = show val <> "]"
-  go (SConsC val sh) = show val <> "," <> go sh
+printShape :: ShapeW -> String
+printShape s = "[" <> go s <> "]" where
+  go (Fix (Whitespaced _ STailF)) = ""
+  go (Fix (Whitespaced _ (SConsIF val x))) = val <> "," <> go x
+  go (Fix (Whitespaced _ (SConsCF val x))) = show val <> "," <> go x
 
-printType :: TypeW -> String
+printType :: TypeSW -> String
 printType = \case
-  Fix (Whitespaced mws (TConstF cname cshape)) -> fromMaybe "" mws <> cname <> (maybe "" printShape cshape)
-  Fix (Whitespaced mws (TIdentF iname)) -> fromMaybe "" mws <> iname
+  Fix (Shaped cshape (Whitespaced mws (TConstF cname))) ->
+    fromMaybe "" mws <> cname <> (printShape cshape)
+  Fix (Shaped cshape (Whitespaced mws (TIdentF iname))) ->
+    fromMaybe "" mws <> iname
   -- Fix (Whitespaced mws (TApp pat typ)) -> fromMaybe "" mws <> iname
 
-printExprC :: (t -> String) -> ExprLW t -> String
+printExprC :: (TypeW -> String) -> ExprLW -> String
 printExprC ptyp expr = undefined {- FIXME: TODO -}
